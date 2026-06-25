@@ -19,6 +19,27 @@ async function recalcHeader(client, company, docType, docNumber) {
   `, [company, docType, docNumber]);
 }
 
+// GET AR Code + Group LOV
+router.get('/lov', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT ON (av.ar_code)
+        av.ar_code         AS ar_code,
+        av.ar_name         AS ar_name,
+        gl.arg_group_code  AS arg_group_code,
+        gl.arg_description AS arg_description
+      FROM id_ar_master_view av
+      JOIN id_ar_group_link  gl ON av.ar_company = gl.arg_company
+                                AND av.ar_code    = gl.arg_code
+      WHERE av.ar_company = $1
+      ORDER BY av.ar_code, av.ar_name
+    `, [DEFAULT_COMPANY]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET headers with optional filters
 router.get('/', async (req, res) => {
   const { doc_type, doc_number, doc_base, ar_code, ar_group, status, date_from, date_to } = req.query;
@@ -190,6 +211,7 @@ router.post('/:company/:doc_type/:doc_number/lines', async (req, res) => {
     sub_ard_narration, sub_ard_notes,
     sub_ard_detail_1, sub_ard_detail_2, sub_ard_detail_3, sub_ard_detail_4, sub_ard_detail_5,
     sub_ard_detail_6, sub_ard_detail_7, sub_ard_detail_8, sub_ard_detail_9, sub_ard_detail_10,
+    source_ctid,
   } = req.body;
   const client = await pool.connect();
   try {
@@ -218,6 +240,15 @@ router.post('/:company/:doc_type/:doc_number/lines', async (req, res) => {
       sub_ard_detail_1, sub_ard_detail_2, sub_ard_detail_3, sub_ard_detail_4, sub_ard_detail_5,
       sub_ard_detail_6, sub_ard_detail_7, sub_ard_detail_8, sub_ard_detail_9, sub_ard_detail_10,
     ]);
+    // Mark the source supply line as invoiced so it won't appear again
+    if (source_ctid) {
+      await client.query(
+        `UPDATE id_qn_fv_supply_details
+         SET qfs_inv_type=$1, qfs_inv_number=$2
+         WHERE ctid=$3::tid`,
+        [doc_type, doc_number, source_ctid]
+      );
+    }
     await recalcHeader(client, company, doc_type, doc_number);
     await client.query('COMMIT');
     res.status(201).json(result.rows[0]);

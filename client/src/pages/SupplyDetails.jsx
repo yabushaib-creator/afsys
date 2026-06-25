@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { vesselCallApi, tariffApi, currencyApi, supplyDetailsApi, basisMasterApi } from '../services/api';
+import { vesselCallApi, tariffApi, currencyApi, supplyDetailsApi, basisMasterApi, arMasterApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import QuickAddSelect from '../components/QuickAddSelect';
 
@@ -38,6 +38,7 @@ export default function SupplyDetails() {
   const [tariffs, setTariffs] = useState([]);
   const [currencies, setCurrencies] = useState([]);
   const [basisList, setBasisList] = useState([]);
+  const [arCodes, setArCodes] = useState([]);
   const [selectedCall, setSelectedCall] = useState(null);
   const [supplyData, setSupplyData] = useState([]);
   const [loadingCalls, setLoadingCalls] = useState(true);
@@ -62,11 +63,13 @@ export default function SupplyDetails() {
       tariffApi.getAll(),
       currencyApi.getAll(),
       basisMasterApi.getAll(),
-    ]).then(([calls, tars, curs, basis]) => {
+      arMasterApi.getAll(),
+    ]).then(([calls, tars, curs, basis, ars]) => {
       setVesselCalls(calls);
       setTariffs(tars);
       setCurrencies(curs);
       setBasisList(basis);
+      setArCodes(ars);
     }).catch(err => message.error('Failed to load data: ' + err.message))
       .finally(() => setLoadingCalls(false));
   }, []);
@@ -93,32 +96,40 @@ export default function SupplyDetails() {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ qfs_date: dayjs(), qfs_exrate: 1, qfs_supplier_rate: 0, qfs_currency: 'QAR', qfs_rate: 0, qfs_type: 'A' });
+    const partyCode = selectedCall?.qfvc_party ? String(selectedCall.qfvc_party) : undefined;
+    const ar = partyCode ? arCodes.find(a => String(a.ar_code) === partyCode) : null;
+    form.setFieldsValue({
+      qfs_date: dayjs(), qfs_exrate: 1, qfs_supplier_rate: 0,
+      qfs_currency: 'QAR', qfs_rate: 0, qfs_type: 'A',
+      qfs_party: partyCode,
+      qfs_description: ar?.ar_name ?? undefined,
+    });
     setModalOpen(true);
   };
 
   const openEdit = (record) => {
     setEditing(record);
     form.setFieldsValue({
-      qfs_tariff: record.qfs_tariff,
-      qfs_date: record.qfs_date ? dayjs(record.qfs_date) : null,
-      qfs_basis: record.qfs_basis,
-      qfs_quantity: record.qfs_quantity,
-      qfs_currency: record.qfs_currency,
-      qfs_exrate: record.qfs_exrate,
-      qfs_rate: record.qfs_rate,
-      qfs_f_amount: record.qfs_f_amount,
-      qfs_l_amount: record.qfs_l_amount,
-      qfs_description: record.qfs_description,
-      qfs_remarks: record.qfs_remarks,
-      qfs_type: record.qfs_type,
-      qfs_supplier: record.qfs_supplier,
+      qfs_party:        String(record.qfs_party ?? ''),
+      qfs_tariff:       record.qfs_tariff,
+      qfs_date:         record.qfs_date ? dayjs(record.qfs_date) : null,
+      qfs_basis:        record.qfs_basis,
+      qfs_quantity:     record.qfs_quantity,
+      qfs_currency:     record.qfs_currency,
+      qfs_exrate:       record.qfs_exrate,
+      qfs_rate:         record.qfs_rate,
+      qfs_f_amount:     record.qfs_f_amount,
+      qfs_l_amount:     record.qfs_l_amount,
+      qfs_description:  record.qfs_description,
+      qfs_remarks:      record.qfs_remarks,
+      qfs_type:         record.qfs_type,
+      qfs_supplier:     record.qfs_supplier,
       qfs_supplier_rate: record.qfs_supplier_rate,
       qfs_supplier_ref: record.qfs_supplier_ref,
-      qfs_inv_type: record.qfs_inv_type,
-      qfs_inv_number: record.qfs_inv_number,
-      qfs_rct_type: record.qfs_rct_type,
-      qfs_rct_number: record.qfs_rct_number,
+      qfs_inv_type:     record.qfs_inv_type,
+      qfs_inv_number:   record.qfs_inv_number,
+      qfs_rct_type:     record.qfs_rct_type,
+      qfs_rct_number:   record.qfs_rct_number,
       qfs_inv_rct_date: record.qfs_inv_rct_date ? dayjs(record.qfs_inv_rct_date) : null,
     });
     setModalOpen(true);
@@ -203,7 +214,7 @@ export default function SupplyDetails() {
         qfs_company: selectedCall.qfvc_company,
         qfs_refno: selectedCall.qfvc_refno,
         qfs_vessel: selectedCall.qfvc_vessel,
-        qfs_party: selectedCall.qfvc_party,
+        qfs_party: values.qfs_party ?? selectedCall.qfvc_party,
       };
 
       if (editing) {
@@ -482,6 +493,37 @@ export default function SupplyDetails() {
         styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="qfs_party" label="Party (AR Code)" rules={[{ required: true, message: 'Required' }]}>
+                <Select
+                  showSearch allowClear size="large"
+                  placeholder="Select AR code..."
+                  filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                  options={arCodes.map(a => ({ value: String(a.ar_code), label: `${a.ar_code} — ${a.ar_name || ''}` }))}
+                  onChange={(val) => {
+                    const ar = arCodes.find(a => String(a.ar_code) === String(val));
+                    if (ar) form.setFieldsValue({ qfs_description: ar.ar_name });
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="qfs_description" label="Description (AR Name)">
+                <Select
+                  showSearch allowClear size="large"
+                  placeholder="Select or type customer name..."
+                  filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                  options={arCodes.map(a => ({ value: a.ar_name || '', label: `${a.ar_name || ''} [${a.ar_code}]` }))}
+                  onChange={(val) => {
+                    const ar = arCodes.find(a => a.ar_name === val);
+                    if (ar) form.setFieldsValue({ qfs_party: String(ar.ar_code) });
+                  }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="qfs_tariff" label="Tariff" rules={[{ required: true, message: 'Required' }]}>

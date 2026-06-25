@@ -8,7 +8,7 @@ import {
 const { RangePicker } = DatePicker;
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, FileAddOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { arInvoiceApi, arMasterApi, currencyApi, supplyDetailsApi, docTypeMasterApi } from '../services/api';
+import { arInvoiceApi, currencyApi, supplyDetailsApi, docTypeMasterApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const { Title, Text } = Typography;
@@ -42,7 +42,7 @@ export default function ARInvoice() {
 
   // LOVs
   const [docTypes, setDocTypes]       = useState([]);
-  const [arCodes, setArCodes]         = useState([]);
+  const [arLov, setArLov]             = useState([]);
   const [currencies, setCurrencies]   = useState([]);
 
   // Supply line selection
@@ -56,7 +56,11 @@ export default function ARInvoice() {
 
   useEffect(() => {
     docTypeMasterApi.getAll('FVQ0050').then(setDocTypes).catch(() => {});
-    arMasterApi.getAll().then(setArCodes).catch(() => {});
+    arInvoiceApi.getLov().then(rows => {
+      const seen = new Map();
+      rows.forEach(r => { if (!seen.has(r.ar_code)) seen.set(r.ar_code, r); });
+      setArLov([...seen.values()]);
+    }).catch(() => {});
     currencyApi.getAll().then(setCurrencies).catch(() => {});
   }, []);
 
@@ -188,7 +192,7 @@ export default function ARInvoice() {
     setSelectedSupplyKeys([]);
     if (!arCode) return;
     setLoadingSupply(true);
-    try { setSupplyLines(await supplyDetailsApi.getByArCode('QTC', arCode)); }
+    try { setSupplyLines(await supplyDetailsApi.getByArCode(arCode)); }
     catch (err) { message.error(err.message); }
     finally { setLoadingSupply(false); }
   };
@@ -213,11 +217,13 @@ export default function ARInvoice() {
           sub_ard_detail_5:       String(line.qfs_quantity ?? ''),
           sub_ard_detail_6:       String(line.qfs_rate ?? ''),
           sub_ard_detail_7:       String(line.qfs_refno ?? ''),
+          source_ctid:            line.ctid,
         });
       }
       await fetchDetails(currentKey);
       await fetchInvoices();
       setSelectedSupplyKeys([]);
+      handleLoadSupply(supplyArCode);
       message.success(`${lines.length} line(s) added.`);
     } catch (err) { message.error(err.message); }
     finally { setAddingLines(false); }
@@ -367,7 +373,7 @@ export default function ARInvoice() {
               <Col xs={24} sm={12} md={5}>
                 <Select allowClear showSearch size="large" style={{ width: '100%' }} placeholder="AR Code"
                   filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                  options={arCodes.map(a => ({ value: a.ar_code, label: `${a.ar_code} — ${a.ar_name || ''}` }))}
+                  options={arLov.map(a => ({ value: a.ar_code, label: `${a.ar_code} — ${a.ar_name || ''}` }))}
                   value={filters.ar_code || undefined}
                   onChange={v => setFilters(f => ({ ...f, ar_code: v }))} />
               </Col>
@@ -451,7 +457,7 @@ export default function ARInvoice() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         width={Math.min(1150, window.innerWidth * 0.97)}
-        styles={{ body: { padding: '24px', background: '#f8f9fa', overflowY: 'auto' } }}
+        styles={{ body: { padding: '12px 16px', background: '#f8f9fa', overflowY: 'auto' } }}
         extra={
           canEdit && (
             <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSaveHeader}
@@ -461,124 +467,111 @@ export default function ARInvoice() {
           )
         }
       >
-        <Form form={form} layout="vertical">
-          <Row gutter={[16, 16]}>
+        <Form form={form} layout="vertical" size="small">
+          <Form.Item name="sub_ar_doc_base" hidden><Input /></Form.Item>
+          <Form.Item name="sub_ar_status"   hidden><Input /></Form.Item>
 
-            {/* ── HEADER ── */}
-            <Col span={24}>
-              <Card title="📄 Header" size="small" style={{ borderRadius: 10 }}>
-                <Row gutter={16}>
-                  <Col xs={24} sm={12} md={6}>
-                    <Form.Item name="sub_ar_doc_type" label="Document Type" rules={[{ required: true, message: 'Required' }]}>
-                      <Select showSearch size="large" placeholder="Select type..." disabled={!!currentKey}
-                        filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                        options={docTypes.map(d => ({ value: d.doc_type, label: `${d.doc_type} — ${d.doc_name}` }))} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Form.Item name="sub_ar_doc_number" label="Document Number" rules={[{ required: true, message: 'Required' }]}>
-                      <Input size="large" maxLength={25} disabled={!!currentKey} />
-                    </Form.Item>
-                  </Col>
-                  <Form.Item name="sub_ar_doc_base" hidden>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="sub_ar_status" hidden>
-                    <Input />
-                  </Form.Item>
-                  <Col xs={24} sm={12} md={4}>
-                    <Form.Item name="sub_ar_group" label="AR Group" rules={[{ required: true, message: 'Required' }]}>
-                      <Input size="large" maxLength={10} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12} md={10}>
-                    <Form.Item name="sub_ar_code" label="AR Code" rules={[{ required: true, message: 'Required' }]}>
-                      <Select showSearch size="large" placeholder="Select AR code..."
-                        filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                        options={arCodes.map(a => ({ value: a.ar_code, label: `${a.ar_code} - ${a.ar_name || ''}` }))} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12} md={14}>
-                    <Form.Item name="sub_ar_other_reference" label="Other Reference">
-                      <Input size="large" maxLength={50} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
+          <Card size="small" style={{ borderRadius: 8, marginBottom: 8 }}
+            bodyStyle={{ padding: '8px 12px' }}>
+            {/* Row 1: Doc Type | Doc Number | AR Code (wider) | AR Group | Other Ref */}
+            <Row gutter={8} align="bottom">
+              <Col xs={24} sm={6} md={4}>
+                <Form.Item name="sub_ar_doc_type" label="Doc Type" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <Select showSearch placeholder="Type…" disabled={!!currentKey}
+                    filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
+                    options={docTypes.map(d => ({ value: d.doc_type, label: `${d.doc_type} — ${d.doc_name}` }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={6} md={4}>
+                <Form.Item name="sub_ar_doc_number" label="Doc Number" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <Input maxLength={25} disabled={!!currentKey} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8}>
+                <Form.Item name="sub_ar_code" label="AR Code" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <Select showSearch placeholder="AR code…"
+                    filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
+                    options={arLov.map(a => ({ value: a.ar_code, label: `${a.ar_code} — ${a.ar_name || ''}` }))}
+                    onChange={val => {
+                      const entry = arLov.find(a => a.ar_code === val);
+                      if (entry) form.setFieldsValue({ sub_ar_group: entry.arg_group_code });
+                    }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={8} md={6}>
+                <Form.Item name="sub_ar_group" label="AR Group" style={{ marginBottom: 6 }}>
+                  <Select showSearch allowClear placeholder="Group…"
+                    filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
+                    options={[...new Map(arLov.map(a => [a.arg_group_code, a])).values()]
+                      .map(a => ({ value: a.arg_group_code, label: `${a.arg_group_code} — ${a.arg_description || ''}` }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={4} md={2}>
+                <Form.Item name="sub_ar_other_reference" label="Other Ref" style={{ marginBottom: 6 }}>
+                  <Input maxLength={50} />
+                </Form.Item>
+              </Col>
+            </Row>
 
-            {/* ── CURRENCY ── */}
-            <Col xs={24} md={8}>
-              <Card title="💱 Currency" size="small" style={{ borderRadius: 10 }}>
-                <Form.Item name="sub_ar_currency" label="Currency" rules={[{ required: true, message: 'Required' }]}>
-                  <Select showSearch size="large" placeholder="Select currency..."
-                    filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            {/* Row 2: Currency | Ex Rate | Doc Date | GL Date | Age Date | Due Date | Discount | Tax */}
+            <Row gutter={8} align="bottom">
+              <Col xs={12} sm={6} md={3}>
+                <Form.Item name="sub_ar_currency" label="Currency" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <Select showSearch placeholder="CCY…"
+                    filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
                     options={currencies.map(c => ({ value: c.currency_code, label: `${c.currency_code} - ${c.currency_name || ''}` }))} />
                 </Form.Item>
-                <Form.Item name="sub_ar_ex_rate" label="Ex. Rate" rules={[{ required: true, message: 'Required' }]}>
-                  <InputNumber style={{ width: '100%' }} size="large" min={0} step={0.0001} precision={4} />
+              </Col>
+              <Col xs={12} sm={6} md={3}>
+                <Form.Item name="sub_ar_ex_rate" label="Ex. Rate" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <InputNumber style={{ width: '100%' }} min={0} step={0.0001} precision={4} />
                 </Form.Item>
-                <Row gutter={12}>
-                  <Col span={12}>
-                    <Form.Item name="sub_ar_discount" label="Discount">
-                      <InputNumber style={{ width: '100%' }} size="large" min={0} precision={2} />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="sub_ar_tax" label="Tax">
-                      <InputNumber style={{ width: '100%' }} size="large" min={0} precision={2} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
+              </Col>
+              <Col xs={12} sm={6} md={4}>
+                <Form.Item name="sub_ar_date" label="Doc Date" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6} md={4}>
+                <Form.Item name="sub_ar_gl_date" label="GL Date" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6} md={4}>
+                <Form.Item name="sub_ar_age_date" label="Age Date" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6} md={4}>
+                <Form.Item name="sub_ar_due_date" label="Due Date" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6} md={2}>
+                <Form.Item name="sub_ar_discount" label="Disc." style={{ marginBottom: 6 }}>
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} />
+                </Form.Item>
+              </Col>
+              <Col xs={12} sm={6} md={0} style={{ display: 'none' }}>
+                {/* Tax hidden — kept in form for submission */}
+              </Col>
+              <Form.Item name="sub_ar_tax" hidden><InputNumber /></Form.Item>
+            </Row>
 
-            {/* ── INVOICE DATES ── */}
-            <Col xs={24} md={16}>
-              <Card title="📅 Invoice Dates" size="small" style={{ borderRadius: 10 }}>
-                <Row gutter={16}>
-                  <Col xs={24} sm={12}>
-                    <Form.Item name="sub_ar_date" label="Document Date" rules={[{ required: true, message: 'Required' }]}>
-                      <DatePicker style={{ width: '100%' }} size="large" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item name="sub_ar_gl_date" label="GL Date" rules={[{ required: true, message: 'Required' }]}>
-                      <DatePicker style={{ width: '100%' }} size="large" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item name="sub_ar_age_date" label="Age Date" rules={[{ required: true, message: 'Required' }]}>
-                      <DatePicker style={{ width: '100%' }} size="large" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item name="sub_ar_due_date" label="Due Date" rules={[{ required: true, message: 'Required' }]}>
-                      <DatePicker style={{ width: '100%' }} size="large" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-
-            {/* ── NARRATION & NOTES ── */}
-            <Col span={24}>
-              <Card title="📝 Narration & Notes" size="small" style={{ borderRadius: 10 }}>
-                <Row gutter={16}>
-                  <Col xs={24} md={12}>
-                    <Form.Item name="sub_ar_narration" label="Narration">
-                      <Input.TextArea rows={3} maxLength={240} showCount />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item name="sub_ar_notes" label="Notes">
-                      <Input.TextArea rows={3} maxLength={2000} showCount />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-          </Row>
+            {/* Row 3: Narration | Notes (single-line) */}
+            <Row gutter={8} align="bottom">
+              <Col xs={24} md={12}>
+                <Form.Item name="sub_ar_narration" label="Narration" style={{ marginBottom: 0 }}>
+                  <Input maxLength={240} placeholder="Narration…" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="sub_ar_notes" label="Notes" style={{ marginBottom: 0 }}>
+                  <Input maxLength={2000} placeholder="Notes…" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
         </Form>
 
         {/* ── ADD LINES FROM SUPPLY ── */}
@@ -586,7 +579,7 @@ export default function ARInvoice() {
           <Card
             title="📦 Add Lines from Supply"
             size="small"
-            style={{ borderRadius: 10, border: `1px dashed ${headerSaved ? '#1890ff' : '#d9d9d9'}`, marginTop: 16, opacity: headerSaved ? 1 : 0.45 }}
+            style={{ borderRadius: 8, border: `1px dashed ${headerSaved ? '#1890ff' : '#d9d9d9'}`, marginTop: 8, opacity: headerSaved ? 1 : 0.45 }}
             extra={
               <Button type="primary" icon={<FileAddOutlined />}
                 loading={addingLines}
@@ -633,7 +626,7 @@ export default function ARInvoice() {
         <Card
           title="📋 Invoice Lines"
           size="small"
-          style={{ borderRadius: 10, marginTop: 16 }}
+          style={{ borderRadius: 8, marginTop: 8 }}
           extra={
             details.length > 0 && (
               <Space>

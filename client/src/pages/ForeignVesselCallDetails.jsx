@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { vesselCallApi, vesselApi } from '../services/api';
+import { vesselCallApi, vesselApi, arMasterApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import QuickAddSelect from '../components/QuickAddSelect';
 
@@ -26,6 +26,7 @@ const PARTY_OPTIONS = [
   { value: 'CHARTERER', label: 'Charterer' },
   { value: 'AGENT', label: 'Agent' },
   { value: 'BROKER', label: 'Broker' },
+  // kept for legacy display only
 ];
 
 const STATUS_OPTIONS = [
@@ -37,6 +38,7 @@ export default function ForeignVesselCallDetails() {
   const { canEdit } = useAuth();
   const [data, setData] = useState([]);
   const [vessels, setVessels] = useState([]);
+  const [arCodes, setArCodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,12 +56,14 @@ export default function ForeignVesselCallDetails() {
     setLoading(true);
     setError(null);
     try {
-      const [calls, vesselsList] = await Promise.all([
+      const [calls, vesselsList, ars] = await Promise.all([
         vesselCallApi.getAll(),
-        vesselApi.getAll()
+        vesselApi.getAll(),
+        arMasterApi.getAll(),
       ]);
       setData(calls);
       setVessels(vesselsList);
+      setArCodes(ars);
     } catch (err) {
       setError(err.message);
       message.error('Failed to load data: ' + err.message);
@@ -75,9 +79,8 @@ export default function ForeignVesselCallDetails() {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({
-      qfvc_status: 'A'
-    });
+    const nextRefno = data.length > 0 ? Math.max(...data.map(d => Number(d.qfvc_refno) || 0)) + 1 : 1;
+    form.setFieldsValue({ qfvc_status: 'A', qfvc_refno: nextRefno });
     setModalOpen(true);
   };
 
@@ -87,7 +90,7 @@ export default function ForeignVesselCallDetails() {
       qfvc_refno: record.qfvc_refno,
       qfvc_vessel: record.qfvc_vessel,
       qfvc_name: record.qfvc_name,
-      qfvc_party: record.qfvc_party,
+      qfvc_party: record.qfvc_party != null ? String(record.qfvc_party) : undefined,
       qfvc_eta: record.qfvc_eta ? dayjs(record.qfvc_eta) : null,
       qfvc_etd: record.qfvc_etd ? dayjs(record.qfvc_etd) : null,
       qfvc_l_date: record.qfvc_l_date ? dayjs(record.qfvc_l_date) : null,
@@ -189,8 +192,8 @@ export default function ForeignVesselCallDetails() {
   };
 
   const getPartyLabel = (code) => {
-    const party = PARTY_OPTIONS.find(p => p.value === code);
-    return party ? party.label : code;
+    const ar = arCodes.find(a => String(a.ar_code) === String(code));
+    return ar ? `${ar.ar_code} — ${ar.ar_name}` : code;
   };
 
   const getStatusLabel = (status) => {
@@ -405,11 +408,8 @@ export default function ForeignVesselCallDetails() {
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
-          <Form.Item
-            name="qfvc_refno"
-            style={{ display: 'none' }}
-          >
-            <InputNumber />
+          <Form.Item name="qfvc_refno" label="Ref #">
+            <InputNumber style={{ width: '100%' }} size="large" disabled />
           </Form.Item>
 
           <Form.Item
@@ -448,13 +448,14 @@ export default function ForeignVesselCallDetails() {
 
           <Form.Item
             name="qfvc_party"
-            label="Party Type"
-            rules={[{ required: true, message: 'Party type is required' }]}
+            label="Party"
+            rules={[{ required: true, message: 'Party is required' }]}
           >
             <Select
-              placeholder="Select party type..."
-              options={PARTY_OPTIONS}
-              size="large"
+              showSearch allowClear size="large"
+              placeholder="Select party (AR code)..."
+              filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              options={arCodes.map(a => ({ value: String(a.ar_code), label: `${a.ar_code} — ${a.ar_name || ''}` }))}
             />
           </Form.Item>
 

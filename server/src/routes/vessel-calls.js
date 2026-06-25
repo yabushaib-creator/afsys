@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const DEFAULT_COMPANY = 'MILAHA';
+const DEFAULT_COMPANY = 'QTC';
 
 // GET all vessel calls
 router.get('/', async (req, res) => {

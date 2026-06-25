@@ -108,7 +108,7 @@ export const supplyInquiryApi = {
 };
 
 export const supplyDetailsApi = {
-  getByArCode: (company, arCode) => request(`/supply-details/by-party/${company}/${encodeURIComponent(arCode)}`),
+  getByArCode: (arCode) => request(`/supply-details/by-party/${encodeURIComponent(arCode)}`),
   getByCall: (company, refno, party) => request(`/supply-details/${company}/${refno}${party ? `?party=${encodeURIComponent(party)}` : ''}`),
   create: (body) => request('/supply-details', { method: 'POST', body: JSON.stringify(body) }),
   update: (ctid, body) => request(`/supply-details/${encodeURIComponent(ctid)}`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -124,6 +124,7 @@ export const docTypeMasterApi = {
 };
 
 export const arInvoiceApi = {
+  getLov: () => request('/ar-invoice/lov'),
   getAll: (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });

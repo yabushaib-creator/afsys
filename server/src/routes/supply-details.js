@@ -2,15 +2,16 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
-// GET supply lines filtered by AR code (qfs_party)
-router.get('/by-party/:company/:ar_code', async (req, res) => {
-  const { company, ar_code } = req.params;
+// GET supply lines filtered by AR code (qfs_party) — excludes already-invoiced lines
+router.get('/by-party/:ar_code', async (req, res) => {
+  const { ar_code } = req.params;
   try {
     const result = await pool.query(
       `SELECT ctid, * FROM id_qn_fv_supply_details
-       WHERE qfs_company=$1 AND qfs_party::text=$2
+       WHERE qfs_party::text=$1
+         AND qfs_inv_number IS NULL
        ORDER BY qfs_date, qfs_tariff`,
-      [company, ar_code]
+      [ar_code]
     );
     res.json(result.rows);
   } catch (err) {
