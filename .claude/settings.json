@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(docker compose *)",
+      "Bash(docker *)",
+      "Bash(powershell *)",
+      "Bash(Get-*)",
+      "Bash(Set-Location *)",
+      "Bash(cd *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Read(C:\\projects\\**)",
+      "Edit(C:\\projects\\**)",
+      "Write(C:\\projects\\**)"
+    ],
+    "deny": [],
+    "additionalDirectories": ["C:\\projects"]
+  }
+}

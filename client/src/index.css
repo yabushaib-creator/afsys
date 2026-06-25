@@ -1,0 +1,65 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  text-align: left;
+}
+
+/* ── Sidebar navigation alignment ───────────────────────────────────────
+   All menu items (group headers + child links) must start their icon+label
+   at the same fixed left position. We remove Ant Design's auto-indent and
+   apply a single consistent padding-left for each level.
+─────────────────────────────────────────────────────────────────────── */
+
+/* Level-1 group headers (Setup / Operations / Security) */
+.afsys-sider .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline-start: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+}
+
+/* Level-2 child items */
+.afsys-sider .ant-menu-sub .ant-menu-item {
+  padding-inline-start: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+}
+
+/* Icon containers — fixed 20 px width so text always starts at the same X */
+.afsys-sider .ant-menu-item-icon,
+.afsys-sider .ant-menu-submenu-title .ant-menu-item-icon {
+  font-size: 14px !important;
+  min-width: 20px !important;
+  width: 20px !important;
+  text-align: center !important;
+  flex-shrink: 0 !important;
+  margin-inline-end: 10px !important;
+}
+
+/* Label text — left-aligned, no extra offset */
+.afsys-sider .ant-menu-title-content {
+  text-align: left !important;
+  flex: 1 !important;
+  line-height: 1.4 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Keep the submenu expand arrow pinned to the right */
+.afsys-sider .ant-menu-submenu-arrow {
+  margin-inline-start: auto !important;
+  flex-shrink: 0 !important;
+}

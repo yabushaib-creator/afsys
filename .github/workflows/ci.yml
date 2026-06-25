@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**", "bugfix/**", "release/**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up runtime
+        # TODO: replace with the appropriate setup action for your stack
+        run: echo "Configure runtime setup here"
+      - name: Install dependencies
+        run: echo "Run install command here"
+      - name: Run linter
+        run: echo "Run lint command here"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: afsys_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/afsys_test
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up runtime
+        run: echo "Configure runtime setup here"
+      - name: Install dependencies
+        run: echo "Run install command here"
+      - name: Run migrations
+        run: echo "Run migration command here"
+      - name: Run tests with coverage
+        run: echo "Run test:coverage command here"
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run dependency vulnerability scan
+        run: echo "Run audit command here (e.g. npm audit --audit-level=high)"
+      - name: Run SAST
+        run: echo "Configure SAST tool here (e.g. semgrep, CodeQL)"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production artifact
+        run: echo "Run build command here"
+      - name: Build Docker image
+        run: echo "docker build -t afsys:${{ github.sha }} ."

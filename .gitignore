@@ -1,0 +1,77 @@
+# ─── Environment & Secrets ────────────────────────────────────────────────────
+config/.env
+config/*.local.*
+.env
+.env.*
+!.env.example
+
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+vendor/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# ─── Build Output ─────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.egg-info/
+*.egg
+*.whl
+target/
+
+# ─── Logs & Temporary Files ───────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+.cache/
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# ─── Test Coverage & Reports ──────────────────────────────────────────────────
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+*.lcov
+junit.xml
+test-results/
+reports/
+
+# ─── IDE & Editor Files ───────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/settings.json
+.vscode/launch.json
+.vscode/*.code-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── OS Files ─────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+ehthumbs.db
+[Dd]esktop.ini
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+.docker/data/
+
+# ─── Miscellaneous ────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
