@@ -126,7 +126,7 @@ router.post('/', async (req, res) => {
       RETURNING *
     `, [
       DEFAULT_COMPANY, sub_ar_doc_type, sub_ar_doc_number, internalNumber,
-      'INV', sub_ar_code, sub_ar_group || '', sub_ar_other_reference || '',
+      sub_ar_doc_base || 'FVPLY_INV', sub_ar_code, sub_ar_group || '', sub_ar_other_reference || '',
       sub_ar_date, sub_ar_gl_date, sub_ar_due_date, sub_ar_age_date,
       sub_ar_currency, sub_ar_ex_rate || 1,
       sub_ar_narration, sub_ar_user, sub_ar_status || 'N',
@@ -163,7 +163,7 @@ router.put('/:company/:doc_type/:doc_number', async (req, res) => {
       RETURNING *
     `, [
       company, doc_type, doc_number,
-      'INV', sub_ar_code, sub_ar_group || '', sub_ar_other_reference || '',
+      sub_ar_doc_base || 'FVPLY_INV', sub_ar_code, sub_ar_group || '', sub_ar_other_reference || '',
       sub_ar_date, sub_ar_gl_date, sub_ar_due_date, sub_ar_age_date,
       sub_ar_currency, sub_ar_ex_rate || 1,
       sub_ar_narration, sub_ar_status || 'N',

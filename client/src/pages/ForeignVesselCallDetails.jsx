@@ -39,12 +39,13 @@ export default function ForeignVesselCallDetails() {
   const [data, setData] = useState([]);
   const [vessels, setVessels] = useState([]);
   const [arCodes, setArCodes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
   const [vesselQForm] = Form.useForm();
   const [quickAddVessel, setQuickAddVessel] = useState(null);
@@ -52,18 +53,19 @@ export default function ForeignVesselCallDetails() {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const fetchData = async () => {
+  useEffect(() => {
+    Promise.all([vesselApi.getAll(), arMasterApi.getAll()])
+      .then(([vesselsList, ars]) => { setVessels(vesselsList); setArCodes(ars); })
+      .catch(() => {});
+  }, []);
+
+  const fetchData = async (activeFilters) => {
     setLoading(true);
     setError(null);
     try {
-      const [calls, vesselsList, ars] = await Promise.all([
-        vesselCallApi.getAll(),
-        vesselApi.getAll(),
-        arMasterApi.getAll(),
-      ]);
+      const calls = await vesselCallApi.getAll(activeFilters ?? filters);
       setData(calls);
-      setVessels(vesselsList);
-      setArCodes(ars);
+      setSearched(true);
     } catch (err) {
       setError(err.message);
       message.error('Failed to load data: ' + err.message);
@@ -72,16 +74,24 @@ export default function ForeignVesselCallDetails() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const handleSearch = () => fetchData(filters);
 
-  const openAdd = () => {
+  const handleClearFilters = () => {
+    setFilters({});
+    setData([]);
+    setSearched(false);
+  };
+
+  const openAdd = async () => {
     setEditing(null);
     form.resetFields();
-    const nextRefno = data.length > 0 ? Math.max(...data.map(d => Number(d.qfvc_refno) || 0)) + 1 : 1;
-    form.setFieldsValue({ qfvc_status: 'A', qfvc_refno: nextRefno });
+    form.setFieldsValue({ qfvc_status: 'A' });
     setModalOpen(true);
+    try {
+      const latest = await vesselCallApi.getAll({ refno: '' });
+      const maxRefno = latest.length > 0 ? Math.max(...latest.map(d => Number(d.qfvc_refno) || 0)) + 1 : 1;
+      form.setFieldsValue({ qfvc_refno: maxRefno });
+    } catch (_) {}
   };
 
   const openEdit = (record) => {
@@ -127,7 +137,7 @@ export default function ForeignVesselCallDetails() {
         message.success('Vessel call created successfully.');
       }
       setModalOpen(false);
-      fetchData();
+      if (searched) fetchData();
     } catch (err) {
       if (err.message) message.error(err.message);
     } finally {
@@ -139,7 +149,7 @@ export default function ForeignVesselCallDetails() {
     try {
       await vesselCallApi.remove(record.qfvc_company, record.qfvc_refno);
       message.success('Vessel call deleted successfully.');
-      fetchData();
+      if (searched) fetchData();
     } catch (err) {
       message.error(err.message);
     }
@@ -176,14 +186,6 @@ export default function ForeignVesselCallDetails() {
       setSavingVessel(false);
     }
   };
-
-  const filteredData = searchText
-    ? data.filter(item =>
-        (item.qfvc_name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (item.qfvc_vessel || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (item.qfvc_captain || '').toLowerCase().includes(searchText.toLowerCase())
-      )
-    : data;
 
   const getVesselLabel = (code) => {
     if (!code) return '—';
@@ -307,84 +309,82 @@ export default function ForeignVesselCallDetails() {
             <Row gutter={[16, 16]} align="middle" justify="space-between" style={{ marginBottom: 16 }}>
               <Col flex="auto">
                 <Space>
-                  <div style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '10px',
-                    background: `linear-gradient(135deg, #1890ff, #69b1ff)`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '24px',
-                  }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '10px', background: 'linear-gradient(135deg, #1890ff, #69b1ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
                     ⛴️
                   </div>
                   <div>
-                    <Title level={3} style={{ margin: 0, color: '#1f2937' }}>
-                      Foreign Vessel Call Details
-                    </Title>
-                    <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>
-                      Manage vessel call information and schedules
-                    </p>
+                    <Title level={3} style={{ margin: 0, color: '#1f2937' }}>Foreign Vessel Call Details</Title>
+                    <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>Manage vessel call information and schedules</p>
                   </div>
                 </Space>
               </Col>
-              <Col flex="auto" style={{ minWidth: '250px' }}>
-                <Input
-                  placeholder="🔍 Search vessel, captain, name..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  allowClear
-                  size="large"
-                  style={{ borderRadius: '8px' }}
-                />
-              </Col>
-              {canEdit && (
-                <Col>
-                  <Button
-                    type="primary"
-                    size="large"
-                    icon={<PlusOutlined />}
-                    onClick={openAdd}
-                    block={isMobile}
-                    style={{
-                      borderRadius: '8px',
-                      height: '40px',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Add Call
+              <Col>
+                <Space>
+                  <Button size="large" loading={loading} onClick={handleSearch}
+                    style={{ borderRadius: 8, height: 40, fontWeight: 600, background: '#1890ff', color: '#fff', border: 'none' }}>
+                    Search
                   </Button>
-                </Col>
-              )}
+                  <Button size="large" onClick={handleClearFilters} style={{ borderRadius: 8, height: 40 }}>Clear</Button>
+                  {canEdit && (
+                    <Button type="primary" size="large" icon={<PlusOutlined />} onClick={openAdd}
+                      style={{ borderRadius: 8, height: 40, fontWeight: 600 }}>
+                      Add Call
+                    </Button>
+                  )}
+                </Space>
+              </Col>
+            </Row>
+
+            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+              <Col xs={24} sm={12} md={4}>
+                <Input size="large" placeholder="Ref #" allowClear
+                  value={filters.refno || ''}
+                  onChange={e => setFilters(f => ({ ...f, refno: e.target.value }))}
+                  onPressEnter={handleSearch} />
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Input size="large" placeholder="Vessel" allowClear
+                  value={filters.vessel || ''}
+                  onChange={e => setFilters(f => ({ ...f, vessel: e.target.value }))}
+                  onPressEnter={handleSearch} />
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Select allowClear showSearch size="large" style={{ width: '100%' }} placeholder="Party (AR Code)"
+                  filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                  options={arCodes.map(a => ({ value: String(a.ar_code), label: `${a.ar_code} — ${a.ar_name || ''}` }))}
+                  value={filters.party || undefined}
+                  onChange={v => setFilters(f => ({ ...f, party: v }))} />
+              </Col>
+              <Col xs={24} sm={12} md={4}>
+                <Select allowClear size="large" style={{ width: '100%' }} placeholder="Status"
+                  options={STATUS_OPTIONS}
+                  value={filters.status || undefined}
+                  onChange={v => setFilters(f => ({ ...f, status: v }))} />
+              </Col>
             </Row>
 
             {error && (
-              <Alert
-                type="error"
-                message={error}
-                closable
-                style={{ marginBottom: 20, borderRadius: '8px' }}
-              />
+              <Alert type="error" message={error} closable style={{ marginBottom: 20, borderRadius: '8px' }} />
             )}
 
-            <Table
-              rowKey={(r) => `${r.qfvc_company}-${r.qfvc_refno}`}
-              columns={columns}
-              dataSource={filteredData}
-              loading={loading}
-              size={isMobile ? 'small' : 'large'}
-              bordered={false}
-              scroll={{ x: 'max-content' }}
-              pagination={{
-                pageSize: isMobile ? 10 : 20,
-                showTotal: (total) => searchText ? `${total} of ${data.length} calls (filtered)` : `${total} calls`,
-                showSizeChanger: !isMobile,
-                style: { marginTop: 20 }
-              }}
-              style={{ borderRadius: '8px' }}
-            />
+            {!searched ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>⛴️</div>
+                <p style={{ margin: 0, fontSize: 15 }}>Click <strong>Search</strong> to load vessel calls</p>
+              </div>
+            ) : (
+              <Table
+                rowKey={(r) => `${r.qfvc_company}-${r.qfvc_refno}`}
+                columns={columns}
+                dataSource={data}
+                loading={loading}
+                size={isMobile ? 'small' : 'large'}
+                bordered={false}
+                scroll={{ x: 'max-content' }}
+                pagination={{ pageSize: isMobile ? 10 : 20, showTotal: t => `${t} calls`, showSizeChanger: !isMobile, style: { marginTop: 20 } }}
+                style={{ borderRadius: '8px' }}
+              />
+            )}
           </Card>
         </Col>
       </Row>

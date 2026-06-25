@@ -3,11 +3,21 @@ const router = express.Router();
 const pool = require('../config/db');
 const DEFAULT_COMPANY = 'QTC';
 
-// GET all vessel calls
+// GET vessel calls with optional filters
 router.get('/', async (req, res) => {
+  const { refno, vessel, party, status } = req.query;
+  const conditions = ['qfvc_company=$1'];
+  const params = [DEFAULT_COMPANY];
+
+  if (refno)  { params.push(`%${refno}%`);  conditions.push(`qfvc_refno::text ILIKE $${params.length}`); }
+  if (vessel) { params.push(`%${vessel}%`); conditions.push(`qfvc_vessel ILIKE $${params.length}`); }
+  if (party)  { params.push(party);         conditions.push(`qfvc_party::text=$${params.length}`); }
+  if (status) { params.push(status);        conditions.push(`qfvc_status=$${params.length}`); }
+
   try {
     const result = await pool.query(
-      `SELECT * FROM id_qn_fgn_vsl_call_details ORDER BY qfvc_eta DESC NULLS LAST`
+      `SELECT * FROM id_qn_fgn_vsl_call_details WHERE ${conditions.join(' AND ')} ORDER BY qfvc_refno DESC LIMIT 200`,
+      params
     );
     res.json(result.rows);
   } catch (err) {

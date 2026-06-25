@@ -51,7 +51,7 @@ const ALL_MENU_ITEMS = [
       { key: 'lines',       icon: DOT, label: 'Line Master' },
       { key: 'countries',   icon: DOT, label: 'Country Master' },
       { key: 'offices',     icon: DOT, label: 'Office Location Master' },
-      { key: 'ar-master',   icon: DOT, label: 'AR Master' },
+      { key: 'ar-master',   icon: DOT, label: 'Customers' },
       { key: 'basis-master',    icon: DOT, label: 'Basis Master' },
       { key: 'doc-type-master', icon: DOT, label: 'Document Type Master' },
       { key: 'vessels',     icon: DOT, label: 'Vessel Master' },

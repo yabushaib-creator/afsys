@@ -15,7 +15,7 @@ const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const fmtNum = (n) => n != null ? Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
-const fmt   = (d) => d ? new Date(d).toLocaleDateString() : '—';
+const fmt   = (d) => { if (!d) return '—'; const dt = new Date(d); return isNaN(dt) ? d : dt.toLocaleDateString(); };
 
 const STATUS_OPTIONS = [
   { value: 'N', label: 'Open' },
@@ -105,7 +105,7 @@ export default function ARInvoice() {
 
   const openAdd = () => {
     form.resetFields();
-    const defaultType = docTypes.find(d => d.doc_type === 'INV') ? 'INV' : (docTypes[0]?.doc_type ?? undefined);
+    const defaultType = docTypes.find(d => d.doc_type === 'FVPLY_INV') ? 'FVPLY_INV' : (docTypes[0]?.doc_type ?? undefined);
     form.setFieldsValue({
       sub_ar_status: 'N', sub_ar_ex_rate: 1, sub_ar_discount: 0, sub_ar_tax: 0,
       sub_ar_date: dayjs(), sub_ar_gl_date: dayjs(),
@@ -280,7 +280,7 @@ export default function ARInvoice() {
     { title: '#',         dataIndex: 'sub_ard_serial',         key: 'serial', width: 50 },
     { title: 'Vessel',    dataIndex: 'sub_ard_detail_1',        key: 'vessel', width: 90 },
     { title: 'Tariff',    dataIndex: 'sub_ard_detail_2',        key: 'tariff', width: 110, render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'Date',      dataIndex: 'sub_ard_detail_3',        key: 'date',   width: 100, render: fmt },
+    { title: 'Detail 3',  dataIndex: 'sub_ard_detail_3',        key: 'det3',   width: 100 },
     { title: 'Basis',     dataIndex: 'sub_ard_detail_4',        key: 'basis',  width: 80 },
     { title: 'Qty',       dataIndex: 'sub_ard_detail_5',        key: 'qty',    width: 70, align: 'right' },
     { title: 'Currency',  dataIndex: 'sub_ard_currency',        key: 'cur',    width: 80 },
@@ -352,22 +352,10 @@ export default function ARInvoice() {
 
             {/* Filter bar */}
             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-              <Col xs={24} sm={12} md={4}>
-                <Select allowClear size="large" style={{ width: '100%' }} placeholder="Doc Type"
-                  options={docTypes.map(d => ({ value: d.doc_type, label: `${d.doc_type} — ${d.doc_name}` }))}
-                  value={filters.doc_type || undefined}
-                  onChange={v => setFilters(f => ({ ...f, doc_type: v }))} />
-              </Col>
-              <Col xs={24} sm={12} md={4}>
+              <Col xs={24} sm={12} md={6}>
                 <Input size="large" placeholder="Doc Number" allowClear
                   value={filters.doc_number || ''}
                   onChange={e => setFilters(f => ({ ...f, doc_number: e.target.value }))}
-                  onPressEnter={handleSearch} />
-              </Col>
-              <Col xs={24} sm={12} md={4}>
-                <Input size="large" placeholder="Doc Base" allowClear
-                  value={filters.doc_base || ''}
-                  onChange={e => setFilters(f => ({ ...f, doc_base: e.target.value }))}
                   onPressEnter={handleSearch} />
               </Col>
               <Col xs={24} sm={12} md={5}>

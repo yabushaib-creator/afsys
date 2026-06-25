@@ -73,7 +73,12 @@ export const userApi = {
 };
 
 export const vesselCallApi = {
-  getAll: () => request('/vessel-calls'),
+  getAll: (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+    const qs = params.toString();
+    return request(qs ? `/vessel-calls?${qs}` : '/vessel-calls');
+  },
   getOne: (company, refno) => request(`/vessel-calls/${company}/${refno}`),
   create: (body) => request('/vessel-calls', { method: 'POST', body: JSON.stringify(body) }),
   update: (company, refno, body) => request(`/vessel-calls/${company}/${refno}`, { method: 'PUT', body: JSON.stringify(body) }),

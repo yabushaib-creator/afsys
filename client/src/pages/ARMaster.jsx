@@ -177,10 +177,10 @@ export default function ARMaster() {
                   </div>
                   <div>
                     <Title level={3} style={{ margin: 0, color: '#1f2937' }}>
-                      AR Master
+                      Customers
                     </Title>
                     <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>
-                      Manage AR (Account Receivable) codes and names
+                      Manage customer codes and names
                     </p>
                   </div>
                 </Space>
