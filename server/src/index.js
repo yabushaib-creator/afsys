@@ -21,6 +21,7 @@ const supplyInquiryRoutes = require('./routes/supply-inquiry');
 const dashboardRoutes = require('./routes/dashboard');
 const arInvoiceRoutes = require('./routes/ar-invoice');
 const docTypeMasterRoutes = require('./routes/doc-type-master');
+const adTestRoutes = require('./routes/ad-test');
 const pool = require('./config/db');
 
 const app = express();
@@ -72,6 +73,7 @@ app.use('/api/supply-inquiry', supplyInquiryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ar-invoice', arInvoiceRoutes);
 app.use('/api/doc-type-master', docTypeMasterRoutes);
+app.use('/api/ad-test', adTestRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

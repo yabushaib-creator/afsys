@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
+import { Form, Input, Button, Card, Alert, Typography } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,15 +8,17 @@ const { Title, Text } = Typography;
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const { login } = useAuth();
 
   const handleSubmit = async (values) => {
     setLoading(true);
+    setError(null);
     try {
       const userData = await authApi.login(values.username, values.password);
       login(userData);
     } catch (err) {
-      message.error(err.message || 'Login failed.');
+      setError(err.message || 'Login failed.');
     } finally {
       setLoading(false);
     }
@@ -107,6 +109,15 @@ export default function Login() {
             Sign In
           </Button>
         </Form>
+
+        {error && (
+          <Alert
+            type={error.includes('access') ? 'warning' : 'error'}
+            message={error}
+            showIcon
+            style={{ marginTop: 20, borderRadius: 8 }}
+          />
+        )}
 
         <div style={{ marginTop: 28, textAlign: 'center' }}>
           <Text style={{ color: '#9ca3af', fontSize: 12 }}>

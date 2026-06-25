@@ -94,7 +94,7 @@ router.put('/:code', async (req, res) => {
            user_filter_9 = $16, user_last_password_changed_on = $17, user_next_password_change_on = $18
        WHERE user_code = $19
        RETURNING *`,
-      [user_name, user_password, user_primary_group, user_status, user_admin_allow,
+      [user_name, user_password, user_primary_group, user_status || 'A', user_admin_allow || 'N',
        user_default_company,
        user_allowed_screens !== undefined ? (user_allowed_screens || null) : (user_filter_0 || null),
        user_filter_1, user_filter_2, user_filter_3,

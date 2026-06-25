@@ -16,6 +16,8 @@ import BasisMaster from './pages/BasisMaster';
 import Dashboard from './pages/Dashboard';
 import ARInvoice from './pages/ARInvoice';
 import DocTypeMaster from './pages/DocTypeMaster';
+import ADTest from './pages/ADTest';
+import ADLoginTest from './pages/ADLoginTest';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -55,6 +57,8 @@ const ALL_MENU_ITEMS = [
       { key: 'basis-master',    icon: DOT, label: 'Basis Master' },
       { key: 'doc-type-master', icon: DOT, label: 'Document Type Master' },
       { key: 'vessels',     icon: DOT, label: 'Vessel Master' },
+      { key: 'ad-test',        icon: DOT, label: 'AD Auth Test' },
+      { key: 'ad-login-test', icon: DOT, label: 'AD Login Test' },
     ],
   },
   {
@@ -126,6 +130,8 @@ function AppContent() {
     if (current === 'basis-master') return <BasisMaster />;
     if (current === 'ar-invoice') return <ARInvoice />;
     if (current === 'doc-type-master') return <DocTypeMaster />;
+    if (current === 'ad-test') return <ADTest />;
+    if (current === 'ad-login-test') return <ADLoginTest />;
     return null;
   };
 
