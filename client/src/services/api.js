@@ -9,10 +9,16 @@ export const authApi = {
 };
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const token = localStorage.getItem('afsys_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
+  if (res.status === 401 && !path.includes('/auth/login')) {
+    localStorage.removeItem('afsys_token');
+    localStorage.removeItem('afsys_user');
+    window.location.reload();
+    return;
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data;

@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
 
+const { requireAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const tariffRoutes = require('./routes/tariff');
 const vesselRoutes = require('./routes/vessels');
@@ -21,7 +22,6 @@ const supplyInquiryRoutes = require('./routes/supply-inquiry');
 const dashboardRoutes = require('./routes/dashboard');
 const arInvoiceRoutes = require('./routes/ar-invoice');
 const docTypeMasterRoutes = require('./routes/doc-type-master');
-const adTestRoutes = require('./routes/ad-test');
 const pool = require('./config/db');
 
 const app = express();
@@ -30,29 +30,28 @@ app.use(helmet());
 app.use(cors({ origin: /^http:\/\/localhost:\d+$/ }));
 app.use(express.json());
 
+// Public routes — no auth required
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 
-// Lookup tables endpoints
+// All routes below require a valid JWT
+app.use(requireAuth);
+
 app.get('/api/cargo-types', async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT cargo_code as value, cargo_name as label FROM id_cargo_type ORDER BY cargo_code`
-    );
+    const result = await pool.query(`SELECT cargo_code as value, cargo_name as label FROM id_cargo_type ORDER BY cargo_code`);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error.' });
   }
 });
 
 app.get('/api/vessel-statuses', async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT status_code as value, status_name as label FROM id_vessel_status ORDER BY status_code DESC`
-    );
+    const result = await pool.query(`SELECT status_code as value, status_name as label FROM id_vessel_status ORDER BY status_code DESC`);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server error.' });
   }
 });
 
@@ -73,7 +72,6 @@ app.use('/api/supply-inquiry', supplyInquiryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ar-invoice', arInvoiceRoutes);
 app.use('/api/doc-type-master', docTypeMasterRoutes);
-app.use('/api/ad-test', adTestRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

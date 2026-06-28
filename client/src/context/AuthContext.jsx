@@ -13,12 +13,18 @@ export function AuthProvider({ children }) {
   });
 
   const login = useCallback((userData) => {
-    localStorage.setItem('afsys_user', JSON.stringify(userData));
-    setUser(userData);
+    // Store token separately; store user profile without sensitive fields
+    if (userData.token) {
+      localStorage.setItem('afsys_token', userData.token);
+    }
+    const { token, ...profile } = userData;
+    localStorage.setItem('afsys_user', JSON.stringify(profile));
+    setUser(profile);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('afsys_user');
+    localStorage.removeItem('afsys_token');
     setUser(null);
   }, []);
 
