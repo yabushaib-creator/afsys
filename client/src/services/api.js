@@ -136,6 +136,7 @@ export const docTypeMasterApi = {
 
 export const arInvoiceApi = {
   getLov: () => request('/ar-invoice/lov'),
+  nextDocNumber: () => request('/ar-invoice/next-doc-number'),
   getAll: (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
@@ -147,6 +148,7 @@ export const arInvoiceApi = {
   update: (company, docType, docNumber, body) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}`, { method: 'PUT', body: JSON.stringify(body) }),
   remove: (company, docType, docNumber) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}`, { method: 'DELETE' }),
   addLine: (company, docType, docNumber, body) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}/lines`, { method: 'POST', body: JSON.stringify(body) }),
+  addLines: (company, docType, docNumber, lines) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}/lines/batch`, { method: 'POST', body: JSON.stringify({ lines }) }),
   updateLine: (company, docType, docNumber, serial, body) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}/lines/${serial}`, { method: 'PUT', body: JSON.stringify(body) }),
   removeLine: (company, docType, docNumber, serial) => request(`/ar-invoice/${company}/${docType}/${encodeURIComponent(docNumber)}/lines/${serial}`, { method: 'DELETE' }),
 };

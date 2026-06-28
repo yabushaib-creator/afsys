@@ -9,10 +9,16 @@ router.get('/', async (req, res) => {
   const conditions = ['qfvc_company=$1'];
   const params = [DEFAULT_COMPANY];
 
-  if (refno)  { params.push(`%${refno}%`);  conditions.push(`qfvc_refno::text ILIKE $${params.length}`); }
-  if (vessel) { params.push(`%${vessel}%`); conditions.push(`qfvc_vessel ILIKE $${params.length}`); }
-  if (party)  { params.push(party);         conditions.push(`qfvc_party::text=$${params.length}`); }
-  if (status) { params.push(status);        conditions.push(`qfvc_status=$${params.length}`); }
+  if (refno)          { params.push(`%${refno}%`);  conditions.push(`qfvc_refno::text ILIKE $${params.length}`); }
+  if (vessel)         { params.push(`%${vessel}%`); conditions.push(`qfvc_vessel ILIKE $${params.length}`); }
+  if (party)          { params.push(party);         conditions.push(`qfvc_party::text=$${params.length}`); }
+  if (status)         { params.push(status);        conditions.push(`qfvc_status=$${params.length}`); }
+  if (req.query.exclude_invoiced === 'true') {
+    conditions.push(`qfvc_refno::text NOT IN (
+      SELECT sub_ar_other_reference FROM id_qn_fv_ar_header
+      WHERE sub_ar_other_reference IS NOT NULL AND sub_ar_other_reference <> ''
+    )`);
+  }
 
   try {
     const result = await pool.query(

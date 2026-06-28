@@ -40,6 +40,26 @@ router.get('/lov', async (req, res) => {
   }
 });
 
+// GET next doc number suggestion
+router.get('/next-doc-number', async (req, res) => {
+  const year = new Date().getFullYear();
+  try {
+    const result = await pool.query(`
+      SELECT sub_ar_doc_number FROM id_qn_fv_ar_header
+      WHERE sub_ar_company=$1 AND sub_ar_doc_number ~ '^SU/INV/[0-9]+/${year}$'
+      ORDER BY sub_ar_internal_number DESC LIMIT 1
+    `, [DEFAULT_COMPANY]);
+    let nextSeq = 1;
+    if (result.rows.length > 0) {
+      const parts = result.rows[0].sub_ar_doc_number.split('/');
+      nextSeq = parseInt(parts[2], 10) + 1;
+    }
+    res.json({ doc_number: `SU/INV/${String(nextSeq).padStart(5, '0')}/${year}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET headers with optional filters
 router.get('/', async (req, res) => {
   const { doc_type, doc_number, doc_base, ar_code, ar_group, status, date_from, date_to } = req.query;
@@ -202,6 +222,57 @@ router.delete('/:company/:doc_type/:doc_number', async (req, res) => {
   }
 });
 
+// POST add multiple detail lines in one transaction
+router.post('/:company/:doc_type/:doc_number/lines/batch', async (req, res) => {
+  const { company, doc_type, doc_number } = req.params;
+  const { lines } = req.body;
+  if (!Array.isArray(lines) || !lines.length) return res.status(400).json({ error: 'No lines provided.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const serialRes = await client.query(
+      `SELECT COALESCE(MAX(sub_ard_serial), 0) AS max_serial FROM id_qn_fv_ar_details
+       WHERE sub_ard_company=$1 AND sub_ard_doc_type=$2 AND sub_ard_doc_number=$3`,
+      [company, doc_type, doc_number]
+    );
+    let serial = serialRes.rows[0].max_serial;
+    for (const line of lines) {
+      serial += 1;
+      await client.query(`
+        INSERT INTO id_qn_fv_ar_details
+          (sub_ard_company, sub_ard_doc_type, sub_ard_doc_number, sub_ard_serial,
+           sub_ard_currency, sub_ard_ex_rate, sub_ard_foreign_amount, sub_ard_local_amount,
+           sub_ard_narration, sub_ard_notes,
+           sub_ard_detail_1, sub_ard_detail_2, sub_ard_detail_3, sub_ard_detail_4, sub_ard_detail_5,
+           sub_ard_detail_6, sub_ard_detail_7, sub_ard_detail_8, sub_ard_detail_9, sub_ard_detail_10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+      `, [
+        company, doc_type, doc_number, serial,
+        line.sub_ard_currency, line.sub_ard_ex_rate || 1,
+        line.sub_ard_foreign_amount || 0, line.sub_ard_local_amount || 0,
+        line.sub_ard_narration, line.sub_ard_notes,
+        line.sub_ard_detail_1, line.sub_ard_detail_2, line.sub_ard_detail_3,
+        line.sub_ard_detail_4, line.sub_ard_detail_5, line.sub_ard_detail_6,
+        line.sub_ard_detail_7, line.sub_ard_detail_8, line.sub_ard_detail_9, line.sub_ard_detail_10,
+      ]);
+      if (line.source_ctid) {
+        await client.query(
+          `UPDATE id_qn_fv_supply_details SET qfs_inv_type=$1, qfs_inv_number=$2 WHERE ctid=$3::tid`,
+          [doc_type, doc_number, line.source_ctid]
+        );
+      }
+    }
+    await recalcHeader(client, company, doc_type, doc_number);
+    await client.query('COMMIT');
+    res.status(201).json({ added: lines.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // POST add detail line
 router.post('/:company/:doc_type/:doc_number/lines', async (req, res) => {
   const { company, doc_type, doc_number } = req.params;
@@ -310,13 +381,40 @@ router.delete('/:company/:doc_type/:doc_number/lines/:serial', async (req, res) 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const result = await client.query(
-      `DELETE FROM id_qn_fv_ar_details
-       WHERE sub_ard_company=$1 AND sub_ard_doc_type=$2 AND sub_ard_doc_number=$3 AND sub_ard_serial=$4
-       RETURNING sub_ard_serial`,
+
+    // Fetch the line before deleting so we can un-mark the supply line
+    const lineRes = await client.query(
+      `SELECT * FROM id_qn_fv_ar_details
+       WHERE sub_ard_company=$1 AND sub_ard_doc_type=$2 AND sub_ard_doc_number=$3 AND sub_ard_serial=$4`,
       [company, doc_type, doc_number, serial]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Line not found' });
+    if (!lineRes.rows.length) return res.status(404).json({ error: 'Line not found' });
+    const line = lineRes.rows[0];
+
+    await client.query(
+      `DELETE FROM id_qn_fv_ar_details
+       WHERE sub_ard_company=$1 AND sub_ard_doc_type=$2 AND sub_ard_doc_number=$3 AND sub_ard_serial=$4`,
+      [company, doc_type, doc_number, serial]
+    );
+
+    // Un-mark the matching supply line so it reappears in Add Lines from Supply
+    // Match by invoice ref + vessel + tariff + refno (detail_7) — avoids numeric precision issues
+    await client.query(`
+      UPDATE id_qn_fv_supply_details
+      SET qfs_inv_type = NULL, qfs_inv_number = NULL
+      WHERE ctid = (
+        SELECT ctid FROM id_qn_fv_supply_details
+        WHERE qfs_inv_type    = $1 AND qfs_inv_number = $2
+          AND qfs_vessel      = $3 AND qfs_tariff     = $4
+          AND qfs_refno::text = $5
+        LIMIT 1
+      )
+    `, [
+      doc_type, doc_number,
+      line.sub_ard_detail_1, line.sub_ard_detail_2,
+      line.sub_ard_detail_7,
+    ]);
+
     await recalcHeader(client, company, doc_type, doc_number);
     await client.query('COMMIT');
     res.json({ success: true });

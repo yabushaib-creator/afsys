@@ -8,7 +8,7 @@ import {
 const { RangePicker } = DatePicker;
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, FileAddOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { arInvoiceApi, currencyApi, supplyDetailsApi, docTypeMasterApi } from '../services/api';
+import { arInvoiceApi, currencyApi, supplyDetailsApi, docTypeMasterApi, vesselCallApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const { Title, Text } = Typography;
@@ -44,6 +44,10 @@ export default function ARInvoice() {
   const [docTypes, setDocTypes]       = useState([]);
   const [arLov, setArLov]             = useState([]);
   const [currencies, setCurrencies]   = useState([]);
+
+  // Vessel call refs for Other Ref LOV
+  const [vesselCallRefs, setVesselCallRefs]         = useState([]);
+  const [loadingVcRefs, setLoadingVcRefs]           = useState(false);
 
   // Supply line selection
   const [supplyArCode, setSupplyArCode]             = useState(null);
@@ -103,7 +107,7 @@ export default function ARInvoice() {
     finally { setLoadingDetails(false); }
   };
 
-  const openAdd = () => {
+  const openAdd = async () => {
     form.resetFields();
     const defaultType = docTypes.find(d => d.doc_type === 'FVPLY_INV') ? 'FVPLY_INV' : (docTypes[0]?.doc_type ?? undefined);
     form.setFieldsValue({
@@ -113,12 +117,17 @@ export default function ARInvoice() {
       sub_ar_doc_type: defaultType,
       sub_ar_currency: 'QAR',
     });
+    try {
+      const { doc_number } = await arInvoiceApi.nextDocNumber();
+      form.setFieldsValue({ sub_ar_doc_number: doc_number });
+    } catch { }
     setCurrentKey(null);
     setHeaderSaved(false);
     setDetails([]);
     setSupplyLines([]);
     setSupplyArCode(null);
     setSelectedSupplyKeys([]);
+    setVesselCallRefs([]);
     setDrawerOpen(true);
   };
 
@@ -129,6 +138,7 @@ export default function ARInvoice() {
     setSupplyLines([]);
     setSelectedSupplyKeys([]);
     setSupplyArCode(null);
+    handleLoadVesselCallRefs(record.sub_ar_code);
     form.setFieldsValue({
       sub_ar_doc_type:        record.sub_ar_doc_type,
       sub_ar_doc_number:      record.sub_ar_doc_number,
@@ -186,6 +196,20 @@ export default function ARInvoice() {
     }
   };
 
+  const handleLoadVesselCallRefs = async (arCode) => {
+    setVesselCallRefs([]);
+    if (!arCode) return;
+    setLoadingVcRefs(true);
+    try {
+      const calls = await vesselCallApi.getAll({ party: arCode, exclude_invoiced: 'true' });
+      setVesselCallRefs(calls.map(c => ({
+        value: String(c.qfvc_refno),
+        label: `${c.qfvc_refno} — ${c.qfvc_vessel || ''} ${c.qfvc_name || ''}`.trim(),
+      })));
+    } catch { }
+    finally { setLoadingVcRefs(false); }
+  };
+
   const handleLoadSupply = async (arCode) => {
     setSupplyArCode(arCode || null);
     setSupplyLines([]);
@@ -201,25 +225,24 @@ export default function ARInvoice() {
     if (!selectedSupplyKeys.length) return message.warning('Select at least one supply line.');
     setAddingLines(true);
     try {
-      const lines = supplyLines.filter((_, i) => selectedSupplyKeys.includes(i));
-      for (const line of lines) {
-        await arInvoiceApi.addLine(currentKey.company, currentKey.doc_type, currentKey.doc_number, {
-          sub_ard_currency:       line.qfs_currency,
-          sub_ard_ex_rate:        line.qfs_exrate,
-          sub_ard_foreign_amount: line.qfs_f_amount,
-          sub_ard_local_amount:   line.qfs_l_amount,
-          sub_ard_narration:      line.qfs_description,
-          sub_ard_notes:          line.qfs_remarks,
-          sub_ard_detail_1:       line.qfs_vessel,
-          sub_ard_detail_2:       line.qfs_tariff,
-          sub_ard_detail_3:       line.qfs_date ? dayjs(line.qfs_date).format('YYYY-MM-DD') : null,
-          sub_ard_detail_4:       line.qfs_basis,
-          sub_ard_detail_5:       String(line.qfs_quantity ?? ''),
-          sub_ard_detail_6:       String(line.qfs_rate ?? ''),
-          sub_ard_detail_7:       String(line.qfs_refno ?? ''),
-          source_ctid:            line.ctid,
-        });
-      }
+      const selected = supplyLines.filter((_, i) => selectedSupplyKeys.includes(i));
+      const lines = selected.map(line => ({
+        sub_ard_currency:       line.qfs_currency,
+        sub_ard_ex_rate:        line.qfs_exrate,
+        sub_ard_foreign_amount: line.qfs_f_amount,
+        sub_ard_local_amount:   line.qfs_l_amount,
+        sub_ard_narration:      line.qfs_description,
+        sub_ard_notes:          line.qfs_remarks,
+        sub_ard_detail_1:       line.qfs_vessel,
+        sub_ard_detail_2:       line.qfs_tariff,
+        sub_ard_detail_3:       line.qfs_date ? dayjs(line.qfs_date).format('YYYY-MM-DD') : null,
+        sub_ard_detail_4:       line.qfs_basis,
+        sub_ard_detail_5:       String(line.qfs_quantity ?? ''),
+        sub_ard_detail_6:       String(line.qfs_rate ?? ''),
+        sub_ard_detail_7:       String(line.qfs_refno ?? ''),
+        source_ctid:            line.ctid,
+      }));
+      await arInvoiceApi.addLines(currentKey.company, currentKey.doc_type, currentKey.doc_number, lines);
       await fetchDetails(currentKey);
       await fetchInvoices();
       setSelectedSupplyKeys([]);
@@ -234,6 +257,7 @@ export default function ARInvoice() {
       await arInvoiceApi.removeLine(currentKey.company, currentKey.doc_type, currentKey.doc_number, serial);
       await fetchDetails(currentKey);
       await fetchInvoices();
+      handleLoadSupply(supplyArCode);
       message.success('Line removed.');
     } catch (err) { message.error(err.message); }
   };
@@ -461,7 +485,7 @@ export default function ARInvoice() {
 
           <Card size="small" style={{ borderRadius: 8, marginBottom: 8 }}
             bodyStyle={{ padding: '8px 12px' }}>
-            {/* Row 1: Doc Type | Doc Number | AR Code (wider) | AR Group | Other Ref */}
+            {/* Row 1: Doc Type | AR Code | AR Group | Doc Number | Other Ref (vessel call LOV) */}
             <Row gutter={8} align="bottom">
               <Col xs={24} sm={6} md={4}>
                 <Form.Item name="sub_ar_doc_type" label="Doc Type" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
@@ -470,12 +494,7 @@ export default function ARInvoice() {
                     options={docTypes.map(d => ({ value: d.doc_type, label: `${d.doc_type} — ${d.doc_name}` }))} />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={6} md={4}>
-                <Form.Item name="sub_ar_doc_number" label="Doc Number" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
-                  <Input maxLength={25} disabled={!!currentKey} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={8}>
+              <Col xs={24} sm={12} md={7}>
                 <Form.Item name="sub_ar_code" label="AR Code" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
                   <Select showSearch placeholder="AR code…"
                     filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
@@ -483,10 +502,12 @@ export default function ARInvoice() {
                     onChange={val => {
                       const entry = arLov.find(a => a.ar_code === val);
                       if (entry) form.setFieldsValue({ sub_ar_group: entry.arg_group_code });
+                      form.setFieldsValue({ sub_ar_other_reference: undefined });
+                      handleLoadVesselCallRefs(val);
                     }} />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={8} md={6}>
+              <Col xs={24} sm={8} md={5}>
                 <Form.Item name="sub_ar_group" label="AR Group" style={{ marginBottom: 6 }}>
                   <Select showSearch allowClear placeholder="Group…"
                     filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
@@ -494,9 +515,17 @@ export default function ARInvoice() {
                       .map(a => ({ value: a.arg_group_code, label: `${a.arg_group_code} — ${a.arg_description || ''}` }))} />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={4} md={2}>
-                <Form.Item name="sub_ar_other_reference" label="Other Ref" style={{ marginBottom: 6 }}>
-                  <Input maxLength={50} />
+              <Col xs={24} sm={6} md={4}>
+                <Form.Item name="sub_ar_doc_number" label="Doc Number" rules={[{ required: true, message: 'Required' }]} style={{ marginBottom: 6 }}>
+                  <Input maxLength={25} disabled={!!currentKey} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={10} md={4}>
+                <Form.Item name="sub_ar_other_reference" label="Vessel Call Ref#" style={{ marginBottom: 6 }}>
+                  <Select showSearch allowClear placeholder="Select vessel call…"
+                    loading={loadingVcRefs}
+                    filterOption={(i, o) => (o?.label ?? '').toLowerCase().includes(i.toLowerCase())}
+                    options={vesselCallRefs} />
                 </Form.Item>
               </Col>
             </Row>
