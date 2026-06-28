@@ -27,7 +27,7 @@ const pool = require('./config/db');
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: /^http:\/\/localhost:\d+$/ }));
+app.use(cors({ origin: /^http:\/\/(localhost|172\.26\.\d+\.\d+):\d+$/ }));
 app.use(express.json());
 
 // Public routes — no auth required
